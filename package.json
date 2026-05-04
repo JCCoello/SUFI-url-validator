@@ -1,0 +1,29 @@
+{
+  "name": "contentful-asset-validator",
+  "version": "1.0.0",
+  "description": "Automated validator for Contentful image assets using Playwright",
+  "main": "index.js",
+  "scripts": {
+    "validate": "ts-node src/validator.ts",
+    "validate:release": "ts-node src/validator.ts --release",
+    "test": "playwright test",
+    "test:report": "playwright show-report",
+    "build": "tsc --noEmit",
+    "lint": "eslint src tests --ext .ts"
+  },
+  "dependencies": {
+    "csv-parse": "^5.5.6",
+    "dotenv": "^16.4.5",
+    "fast-csv": "^5.0.1",
+    "p-limit": "^3.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "@types/node": "^20.12.12",
+    "typescript": "^5.4.5",
+    "ts-node": "^10.9.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

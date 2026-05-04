@@ -1,0 +1,70 @@
+name: Contentful Asset Validation
+
+on:
+  # Trigger manually with release number input
+  workflow_dispatch:
+    inputs:
+      release_number:
+        description: 'Release number to validate (1-4). Leave empty for all.'
+        required: false
+        default: ''
+      concurrency:
+        description: 'Number of parallel requests (1-20)'
+        required: false
+        default: '5'
+
+  # Or trigger on push to validation branches
+  push:
+    branches:
+      - 'validate/**'
+
+jobs:
+  validate:
+    name: Validate Release ${{ github.event.inputs.release_number || 'ALL' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright (no browsers needed — API only)
+        run: npx playwright install --with-deps chromium
+        # chromium is installed to satisfy Playwright's check even though
+        # no browser is launched. Use `--with-deps` for Linux CI.
+
+      - name: Run asset validation
+        env:
+          CONTENTFUL_SPACE_ID: ${{ secrets.CONTENTFUL_SPACE_ID }}
+          CONTENTFUL_ACCESS_TOKEN: ${{ secrets.CONTENTFUL_ACCESS_TOKEN }}
+          CONTENTFUL_ENVIRONMENT: ${{ secrets.CONTENTFUL_ENVIRONMENT || 'master' }}
+          RELEASE_NUMBER: ${{ github.event.inputs.release_number }}
+          CONCURRENCY: ${{ github.event.inputs.concurrency || '5' }}
+          REPORT_FORMAT: both
+          CSV_PATH: ./Resources/images.csv
+        run: npx ts-node src/validator.ts
+
+      - name: Upload validation reports
+        uses: actions/upload-artifact@v4
+        if: always()  # Upload even on failure so we can inspect broken assets
+        with:
+          name: validation-reports-release-${{ github.event.inputs.release_number || 'all' }}
+          path: reports/
+          retention-days: 30
+
+      - name: Upload Playwright HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-html-report
+          path: reports/playwright-html/
+          retention-days: 30

@@ -1,0 +1,29 @@
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment — NEVER commit real credentials
+.env
+
+# Reports (large, generated)
+reports/*.json
+reports/*.csv
+reports/playwright-html/
+
+# Playwright
+test-results/
+playwright-report/
+
+# Resources (local assets, not for repo)
+Resources/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
