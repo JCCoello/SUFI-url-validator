@@ -15,12 +15,14 @@ export default defineConfig({
   // inside the test to respect Contentful rate limits precisely.
   workers: 1,
 
-  // Each asset lookup + image HEAD request should complete well within 30s.
-  // If it doesn't, the CDN or the CDA endpoint is degraded — fail fast.
-  timeout: 30_000,
+  // 999 assets × ~300ms each = ~5 min. Set to 15 min to give headroom.
+  timeout: 900_000,
 
   // Global setup injects validated env vars before any test runs
   globalSetup: './src/globalSetup.ts',
+
+  // Global teardown sends the Slack report after all tests complete
+  globalTeardown: './src/globalTeardown.ts',
 
   // Retry at the Playwright level as a last resort — primary retry logic
   // lives in the validator itself with exponential backoff.
@@ -30,6 +32,17 @@ export default defineConfig({
     ['list'],
     ['html', { outputFolder: './reports/playwright-html', open: 'never' }],
     ['json', { outputFile: './reports/playwright-results.json' }],
+    ['allure-playwright', {
+      outputFolder: './allure-results',
+      suiteTitle: false,
+      detail: false,
+      environmentInfo: {
+        project: 'Banitsimo — Asset Validator',
+        space_id: process.env.CONTENTFUL_SPACE_ID ?? 'catp2t59asao',
+        environment: process.env.CONTENTFUL_ENVIRONMENT ?? 'master',
+        node_version: process.version,
+      },
+    }],
   ],
 
   use: {

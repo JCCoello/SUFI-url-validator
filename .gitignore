@@ -11,11 +11,17 @@ dist/
 # Reports (large, generated)
 reports/*.json
 reports/*.csv
+reports/.results-buffer.ndjson
 reports/playwright-html/
 
 # Playwright
 test-results/
 playwright-report/
+.playwright-mcp/
+
+# Allure (generated)
+allure-report/
+allure-results/
 
 # Resources (local assets, not for repo)
 Resources/

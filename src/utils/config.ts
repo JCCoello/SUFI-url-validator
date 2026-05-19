@@ -48,7 +48,7 @@ export function loadConfig(): ValidatorConfig {
     throw new Error(`REPORT_FORMAT must be one of: json, csv, both (got: ${reportFormat})`);
   }
 
-  const csvPath = path.resolve(__dirname, '../../', process.env.CSV_PATH ?? './Resources/images.csv');
+  const csvPath = path.resolve(__dirname, '../../', process.env.CSV_PATH ?? './Resources/release1.csv');
   if (!fs.existsSync(csvPath)) {
     throw new Error(`CSV file not found at: ${csvPath}`);
   }

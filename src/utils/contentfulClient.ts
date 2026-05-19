@@ -73,20 +73,24 @@ export class ContentfulClient {
    *
    * Returns null if the asset has no file field or is not an image.
    */
-  extractImageUrl(asset: ContentfulAsset, locale = 'en-US'): string | null {
-    // Contentful returns fields keyed by locale. Try the provided locale first,
-    // then fall back to whatever the first available locale key is.
-    const fileField =
-      asset.fields.file?.[locale] ??
-      Object.values(asset.fields.file ?? {})[0];
+  extractImageUrl(asset: ContentfulAsset, locale = 'es'): string | null {
+    const file = asset.fields.file as unknown;
+    if (!file || typeof file !== 'object') return null;
 
-    if (!fileField?.url) return null;
+    const fileObj = file as Record<string, unknown>;
 
-    // Normalise protocol-relative URL
-    const rawUrl = fileField.url;
-    const normalised = rawUrl.startsWith('//') ? `https:${rawUrl}` : rawUrl;
+    // Direct structure (no locale nesting): { url, details, fileName, contentType }
+    if (typeof fileObj['url'] === 'string') {
+      const raw = fileObj['url'];
+      return raw.startsWith('//') ? `https:${raw}` : raw;
+    }
 
-    return normalised;
+    // Locale-keyed structure: { 'es': { url, ... } }
+    const localeField = (fileObj[locale] ?? Object.values(fileObj)[0]) as Record<string, unknown> | undefined;
+    if (!localeField || typeof localeField['url'] !== 'string') return null;
+
+    const raw = localeField['url'];
+    return raw.startsWith('//') ? `https:${raw}` : raw;
   }
 }
 

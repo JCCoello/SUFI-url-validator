@@ -50,7 +50,7 @@ jobs:
           RELEASE_NUMBER: ${{ github.event.inputs.release_number }}
           CONCURRENCY: ${{ github.event.inputs.concurrency || '5' }}
           REPORT_FORMAT: both
-          CSV_PATH: ./Resources/images.csv
+          CSV_PATH: ./Resources/release1.csv
         run: npx ts-node src/validator.ts
 
       - name: Upload validation reports
