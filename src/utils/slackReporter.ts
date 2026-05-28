@@ -77,7 +77,7 @@ function buildPayload(summary: ValidationSummary, releaseName: string): SlackPay
     const failures = summary.failures.slice(0, MAX_SHOWN);
     const overflow = summary.failures.length - MAX_SHOWN;
     const failureLines = failures
-      .map((f) => `• \`${f.assetId}\` — ${f.cdaError ?? f.imageError ?? 'Unknown error'}`)
+      .map((f) => `• \`${f.url}\` — ${f.error ?? (f.httpStatus !== null ? `HTTP ${f.httpStatus}` : 'Unknown error')}`)
       .join('\n');
     blocks.push({
       type: 'section',

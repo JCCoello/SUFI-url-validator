@@ -4,26 +4,15 @@ import * as fs from 'fs';
 import type { ValidatorConfig } from '../types';
 
 /**
- * Loads and validates all required environment variables.
- * Throws a descriptive error if any required variable is missing.
+ * Loads and validates configuration from environment variables.
  * Call this once at startup — do not call per-test.
  */
 export function loadConfig(): ValidatorConfig {
-  // Resolve .env relative to the project root (two levels up from src/utils)
   const envPath = path.resolve(__dirname, '../../.env');
   if (fs.existsSync(envPath)) {
     dotenv.config({ path: envPath });
   } else {
-    dotenv.config(); // fall back to process env (CI scenario)
-  }
-
-  const required = ['CONTENTFUL_SPACE_ID', 'CONTENTFUL_ACCESS_TOKEN'] as const;
-  const missing = required.filter((key) => !process.env[key]);
-  if (missing.length > 0) {
-    throw new Error(
-      `Missing required environment variables: ${missing.join(', ')}\n` +
-      `Copy .env.example to .env and fill in the values.`
-    );
+    dotenv.config();
   }
 
   const releaseRaw = process.env.RELEASE_NUMBER;
@@ -38,9 +27,9 @@ export function loadConfig(): ValidatorConfig {
     }
   }
 
-  const concurrency = parseInt(process.env.CONCURRENCY ?? '5', 10);
-  if (concurrency < 1 || concurrency > 20) {
-    throw new Error(`CONCURRENCY must be between 1 and 20 (got: ${concurrency})`);
+  const concurrency = parseInt(process.env.CONCURRENCY ?? '20', 10);
+  if (concurrency < 1 || concurrency > 100) {
+    throw new Error(`CONCURRENCY must be between 1 and 100 (got: ${concurrency})`);
   }
 
   const reportFormat = (process.env.REPORT_FORMAT ?? 'both') as ValidatorConfig['reportFormat'];
@@ -48,18 +37,12 @@ export function loadConfig(): ValidatorConfig {
     throw new Error(`REPORT_FORMAT must be one of: json, csv, both (got: ${reportFormat})`);
   }
 
-  const csvPath = path.resolve(__dirname, '../../', process.env.CSV_PATH ?? './Resources/release1.csv');
+  const csvPath = path.resolve(__dirname, '../../', process.env.CSV_PATH ?? './Resources/urls.csv');
   if (!fs.existsSync(csvPath)) {
     throw new Error(`CSV file not found at: ${csvPath}`);
   }
 
-  const environment = process.env.CONTENTFUL_ENVIRONMENT ?? 'master';
-  const spaceId = process.env.CONTENTFUL_SPACE_ID!;
-
   return {
-    spaceId,
-    accessToken: process.env.CONTENTFUL_ACCESS_TOKEN!,
-    environment,
     csvPath,
     concurrency,
     maxRetries: parseInt(process.env.MAX_RETRIES ?? '3', 10),
@@ -68,7 +51,5 @@ export function loadConfig(): ValidatorConfig {
     totalReleases,
     reportDir: path.resolve(__dirname, '../../', process.env.REPORT_DIR ?? './reports'),
     reportFormat,
-    cdaBaseUrl: `https://cdn.contentful.com`,
-    imagesBaseUrl: `https://images.ctfassets.net`,
   };
 }

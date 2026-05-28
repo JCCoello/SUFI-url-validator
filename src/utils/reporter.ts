@@ -15,20 +15,21 @@ const DIM = '\x1b[2m';
 
 export function logResult(result: ValidationResult, index: number, total: number): void {
   const prefix = `[${String(index + 1).padStart(String(total).length, ' ')}/${total}]`;
+  const statusText = result.httpStatus !== null ? `HTTP ${result.httpStatus}` : 'no response';
 
   if (result.status === 'OK') {
+    const redirectTag = result.redirected ? `${DIM}(→ ${result.finalUrl})${RESET}` : '';
     console.log(
-      `${GREEN}PASS${RESET} ${DIM}${prefix}${RESET} ${result.assetId}` +
-      `  ${DIM}${result.imageUrl ?? ''}${RESET}` +
+      `${GREEN}PASS${RESET} ${DIM}${prefix}${RESET} ${result.url}` +
+      `  ${DIM}${statusText}${RESET}` +
+      (redirectTag ? `  ${redirectTag}` : '') +
       `  ${DIM}${result.durationMs}ms${RESET}`
     );
   } else {
-    const cdaErr = result.cdaError ? `CDA: ${result.cdaError}` : '';
-    const imgErr = result.imageError ? `IMG: ${result.imageError}` : '';
-    const errors = [cdaErr, imgErr].filter(Boolean).join(' | ');
+    const errMsg = result.error ?? statusText;
     console.log(
-      `${RED}FAIL${RESET} ${DIM}${prefix}${RESET} ${result.assetId}` +
-      `  ${RED}${errors}${RESET}` +
+      `${RED}FAIL${RESET} ${DIM}${prefix}${RESET} ${result.url}` +
+      `  ${RED}${errMsg}${RESET}` +
       `  ${DIM}${result.durationMs}ms${RESET}`
     );
   }
@@ -46,7 +47,7 @@ export function printSummary(summary: ValidationSummary): void {
   console.log(`  VALIDATION SUMMARY`);
   console.log('='.repeat(60));
   console.log(`  Release:     ${summary.releaseNumber ?? 'ALL'}`);
-  console.log(`  Total IDs:   ${summary.totalIds}`);
+  console.log(`  Total URLs:  ${summary.totalIds}`);
   console.log(`  ${GREEN}Passed:${RESET}      ${summary.passed}`);
   console.log(`  ${RED}Failed:${RESET}      ${summary.failed}`);
   console.log(`  ${YELLOW}Skipped:${RESET}     ${summary.skipped}`);
@@ -55,11 +56,11 @@ export function printSummary(summary: ValidationSummary): void {
   console.log('='.repeat(60));
 
   if (summary.failed > 0) {
-    console.log(`\n  ${RED}FAILED ASSETS:${RESET}`);
+    console.log(`\n  ${RED}FAILED URLS:${RESET}`);
     for (const f of summary.failures) {
-      console.log(`    - ${f.assetId}`);
-      if (f.cdaError)   console.log(`      CDA:   ${f.cdaError}`);
-      if (f.imageError) console.log(`      IMAGE: ${f.imageError}`);
+      const detail = f.error ?? (f.httpStatus !== null ? `HTTP ${f.httpStatus}` : 'no response');
+      console.log(`    - ${f.url}`);
+      console.log(`      ${detail}`);
     }
   }
   console.log('');
@@ -88,9 +89,8 @@ export function writeJsonReport(
 }
 
 /**
- * Writes a CSV report — one row per asset ID.
- * Columns: assetId, status, imageUrl, cdaStatus, imageStatus, cdaError, imageError,
- *          fileName, contentType, fileSizeBytes, durationMs, retryCount, timestamp
+ * Writes a CSV report — one row per URL.
+ * Columns: url, status, httpStatus, finalUrl, redirected, error, durationMs, retryCount, timestamp
  */
 export function writeCsvReport(
   results: ValidationResult[],
@@ -103,25 +103,20 @@ export function writeCsvReport(
   const filePath = path.join(reportDir, `validation-${releaseTag}-${timestamp}.csv`);
 
   const headers = [
-    'assetId',
+    'url',
     'status',
-    'imageUrl',
-    'cdaStatus',
-    'imageStatus',
-    'cdaError',
-    'imageError',
-    'fileName',
-    'contentType',
-    'fileSizeBytes',
+    'httpStatus',
+    'finalUrl',
+    'redirected',
+    'error',
     'durationMs',
     'retryCount',
     'timestamp',
   ];
 
-  const escapeCell = (value: string | number | null | undefined): string => {
+  const escapeCell = (value: string | number | boolean | null | undefined): string => {
     if (value === null || value === undefined) return '';
     const str = String(value);
-    // Wrap in quotes if the value contains commas, quotes, or newlines
     if (str.includes(',') || str.includes('"') || str.includes('\n')) {
       return `"${str.replace(/"/g, '""')}"`;
     }
@@ -130,16 +125,12 @@ export function writeCsvReport(
 
   const rows = results.map((r) =>
     [
-      r.assetId,
+      r.url,
       r.status,
-      r.imageUrl,
-      r.cdaStatus,
-      r.imageStatus,
-      r.cdaError,
-      r.imageError,
-      r.fileName,
-      r.contentType,
-      r.fileSizeBytes,
+      r.httpStatus,
+      r.finalUrl,
+      r.redirected,
+      r.error,
       r.durationMs,
       r.retryCount,
       r.timestamp,

@@ -3,15 +3,15 @@ import * as readline from 'readline';
 import type { ReleaseBatch } from '../types';
 
 /**
- * Reads asset IDs from a CSV file with a single "ID" column header.
+ * Reads URLs from a CSV file with a "url" column header.
  * Uses streaming readline to avoid loading the full CSV into memory —
- * safe for files with 5000+ rows.
+ * safe for files with thousands of rows.
  *
- * @returns Ordered array of asset ID strings (header excluded)
+ * @returns Ordered array of URL strings (header excluded)
  */
-export async function readAssetIds(csvPath: string): Promise<string[]> {
+export async function readUrls(csvPath: string): Promise<string[]> {
   return new Promise((resolve, reject) => {
-    const ids: string[] = [];
+    const urls: string[] = [];
     let isFirstLine = true;
     let headerColumnIndex = 0;
 
@@ -25,12 +25,12 @@ export async function readAssetIds(csvPath: string): Promise<string[]> {
       if (!trimmed) return; // skip blank lines
 
       if (isFirstLine) {
-        // Parse header to find the "ID" column index (case-insensitive)
+        // Parse header to find the "url" column index (case-insensitive)
         const headers = trimmed.split(',').map((h) => h.trim().toLowerCase());
-        headerColumnIndex = headers.indexOf('id');
+        headerColumnIndex = headers.indexOf('url');
         if (headerColumnIndex === -1) {
           rl.close();
-          reject(new Error(`CSV header must contain an "ID" column. Found columns: ${headers.join(', ')}`));
+          reject(new Error(`CSV header must contain a "url" column. Found columns: ${headers.join(', ')}`));
           return;
         }
         isFirstLine = false;
@@ -38,24 +38,24 @@ export async function readAssetIds(csvPath: string): Promise<string[]> {
       }
 
       const columns = trimmed.split(',');
-      const id = columns[headerColumnIndex]?.trim();
-      if (id && id.length > 0) {
-        ids.push(id);
+      const url = columns[headerColumnIndex]?.trim();
+      if (url && url.length > 0) {
+        urls.push(url);
       }
     });
 
-    rl.on('close', () => resolve(ids));
+    rl.on('close', () => resolve(urls));
     rl.on('error', (err) => reject(err));
   });
 }
 
 /**
- * Slices the full ID list into a specific release batch.
+ * Slices the full list into a specific release batch.
  * Batches are equal-sized slices; the last batch absorbs any remainder.
  *
- * Example: 999 IDs, 4 releases -> batches of ~250 each.
+ * Example: 999 items, 4 releases -> batches of ~250 each.
  *
- * @param allIds     Full ordered list of asset IDs
+ * @param allIds     Full ordered list of strings
  * @param release    1-based release number (1 to totalReleases)
  * @param total      Total number of releases
  */
