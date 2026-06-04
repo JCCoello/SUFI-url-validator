@@ -29,6 +29,7 @@ export interface ValidatorConfig {
   totalReleases: number;
   reportDir: string;
   reportFormat: 'json' | 'csv' | 'both';
+  vercelBypassToken: string | null;
 }
 
 // ============================================================

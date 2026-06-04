@@ -1,16 +1,17 @@
-# Contentful Asset Validator
+# SUFI URL Validator
 
-Automated validator for Contentful image assets. Validates that every asset ID in a CSV
-responds with HTTP 200 from both the Contentful CDA and the image CDN.
+Automated URL / redirect validation for the **SUFI / Banitsimo migration**. Reads a CSV of
+URLs and asserts each returns **HTTP 200** after following redirects, plus a Playwright suite
+that checks header navigation links on the live preview environment.
 
-## Two validation layers
+## What it does
 
-| Layer | What it checks | Requires network? |
+| Suite | What it checks | File |
 |---|---|---|
-| **Local** (`localAssets.spec.ts`) | File exists, non-zero bytes, valid JPEG header | No |
-| **Remote** (`assets.spec.ts` / `validator.ts`) | CDA returns asset metadata, image CDN returns 200 | Yes |
+| **URL batch** | Every URL in the CSV returns HTTP 200 (redirects followed; 404 is terminal) | `tests/assets.spec.ts` |
+| **Header links** | Every `<a href>` in the preview site header responds with HTTP 200 | `tests/header-nav.spec.ts` |
 
-Always run the local check first — it's free and catches corrupt downloads instantly.
+The same core logic is also exposed as a standalone CLI (`src/validator.ts`) for release-batch runs.
 
 ---
 
@@ -25,11 +26,11 @@ Always run the local check first — it's free and catches corrupt downloads ins
 
 ```bash
 npm install
-npx playwright install --with-deps chromium
+npx playwright install chromium
 ```
 
-> The `--with-deps` flag installs OS-level dependencies needed on Linux/CI.
-> On macOS you can omit `--with-deps`.
+> `tests/header-nav.spec.ts` drives a real browser, so Chromium must be installed.
+> The CSV/CLI validation (`tests/assets.spec.ts`) makes plain HTTP requests and needs no browser.
 
 ### 3. Configure environment
 
@@ -37,54 +38,62 @@ npx playwright install --with-deps chromium
 cp .env.example .env
 ```
 
-Edit `.env` and fill in:
+The preview deployments are behind **Vercel password protection**. Set the visitor password:
 
 ```env
-CONTENTFUL_SPACE_ID=catp2t59asao
-CONTENTFUL_ACCESS_TOKEN=<your CDA token>
-CONTENTFUL_ENVIRONMENT=master
+VERCEL_BYPASS_TOKEN=<vercel visitor password>
 ```
 
-Everything else has sensible defaults. See `.env.example` for all options.
+The validator authenticates once per run against `/_vercel/password`, caches the returned
+`_vercel_jwt` cookie, and attaches it to every subsequent request. Everything else has
+sensible defaults — see `.env.example`.
 
 ---
 
 ## Usage
 
-### Option A — Standalone CLI (recommended for Release validation)
+### Run the test suites (Playwright)
 
 ```bash
-# Validate all IDs in the CSV
-npx ts-node src/validator.ts
+# Everything
+npm test
 
-# Validate a specific release batch (e.g., Release 1 of 4)
-RELEASE_NUMBER=1 npx ts-node src/validator.ts
+# CSV URL batch only
+npm run test:urls
 
-# Override concurrency for faster runs (if you have Team/Enterprise CDA quota)
-CONCURRENCY=10 RELEASE_NUMBER=2 npx ts-node src/validator.ts
-```
+# Header link health check only
+npm run test:header
 
-### Option B — Playwright test runner (generates HTML report)
-
-```bash
-# Local file check only (no Contentful credentials needed)
-npx playwright test tests/localAssets.spec.ts
-
-# Remote CDA + CDN validation, release 1
-RELEASE_NUMBER=1 npx playwright test tests/assets.spec.ts
-
-# Both suites
-RELEASE_NUMBER=1 npx playwright test
-
-# View the HTML report after the run
+# View the HTML report after a run
 npx playwright show-report reports/playwright-html
 ```
 
-### Overriding the local image directory
+### Standalone CLI (for large release batches)
 
 ```bash
-IMAGE_DIR="/path/to/your/batch/folder" npx playwright test tests/localAssets.spec.ts
+# Validate all URLs in the CSV
+npm run validate
+
+# Validate a specific release batch (e.g. release 1 of 4)
+RELEASE_NUMBER=1 npm run validate
+
+# Faster run with higher concurrency
+CONCURRENCY=40 RELEASE_NUMBER=2 npm run validate
 ```
+
+---
+
+## The URL list
+
+URLs live in `Resources/urls.csv` (gitignored). The file needs a single `url` column header:
+
+```csv
+url
+https://sufi-app.vercel.app
+https://sufi-app.vercel.app/seguros
+```
+
+Add one URL per line as pages get built, then re-run the suite.
 
 ---
 
@@ -92,101 +101,83 @@ IMAGE_DIR="/path/to/your/batch/folder" npx playwright test tests/localAssets.spe
 
 | Variable | Default | Description |
 |---|---|---|
-| `CONTENTFUL_SPACE_ID` | — | **Required.** Your Contentful space ID |
-| `CONTENTFUL_ACCESS_TOKEN` | — | **Required.** CDA delivery token |
-| `CONTENTFUL_ENVIRONMENT` | `master` | Contentful environment name |
-| `CSV_PATH` | `./Resources/images.csv` | Path to the asset ID CSV |
-| `CONCURRENCY` | `5` | Parallel CDA requests (keep ≤7 on free tier) |
-| `MAX_RETRIES` | `3` | Retry attempts for network/429/5xx errors |
-| `RETRY_DELAY_MS` | `1000` | Base delay for exponential backoff |
-| `RELEASE_NUMBER` | _(all)_ | Which release batch to validate (1–4) |
-| `TOTAL_RELEASES` | `4` | Total number of releases (for batch slicing) |
+| `VERCEL_BYPASS_TOKEN` | — | Vercel visitor password for the protected preview deployments |
+| `CSV_PATH` | `./Resources/urls.csv` | Path to the URL CSV (must have a `url` column) |
+| `CONCURRENCY` | `20` | Parallel in-flight HTTP requests (1–100) |
+| `MAX_RETRIES` | `3` | Retry attempts on network errors / HTTP 429 / 5xx |
+| `RETRY_DELAY_MS` | `1000` | Base delay (ms) for exponential backoff |
+| `RELEASE_NUMBER` | _(all)_ | Which release batch to validate (1-based) |
+| `TOTAL_RELEASES` | `4` | Total number of release batches (for slicing) |
 | `REPORT_DIR` | `./reports` | Output directory for reports |
 | `REPORT_FORMAT` | `both` | `json`, `csv`, or `both` |
-| `IMAGE_DIR` | _(auto-detect)_ | Override local image batch directory |
+| `SLACK_ENABLED` | _(off)_ | Set to `true` to post a summary to Slack after the run |
+| `SLACK_WEBHOOK_URL` | — | Slack Incoming Webhook URL (required if Slack is enabled) |
 
 ---
 
 ## Reports
 
-Reports are written to `./reports/` after each run:
+After each run, reports are written to `./reports/`:
 
 ```
 reports/
-  validation-release1-2026-05-04T....json   ← Full result + summary
-  validation-release1-2026-05-04T....csv    ← Spreadsheet-friendly
-  playwright-html/                          ← Playwright HTML report
+  validation-all-<timestamp>.json   ← Full result array + summary
+  validation-all-<timestamp>.csv    ← Spreadsheet-friendly
+  playwright-html/                  ← Playwright HTML report
 ```
 
-### CSV columns
+CSV columns: `url`, `status`, `httpStatus`, `finalUrl`, `redirected`, `error`,
+`durationMs`, `retryCount`, `timestamp`.
 
-`assetId`, `status`, `imageUrl`, `cdaStatus`, `imageStatus`, `cdaError`, `imageError`,
-`fileName`, `contentType`, `fileSizeBytes`, `durationMs`, `retryCount`, `timestamp`
-
-### Exit codes
+### Exit codes (CLI)
 
 | Code | Meaning |
 |---|---|
-| `0` | All assets passed |
-| `1` | One or more assets failed — check the report |
+| `0` | All URLs passed |
+| `1` | One or more URLs failed — check the report |
+
+---
+
+## Retry behaviour
+
+The validator retries with exponential backoff (1s, 2s, 4s, …) on:
+
+- Network / runtime errors
+- HTTP `429` (rate limited)
+- HTTP `5xx` (server errors)
+
+HTTP `404` is **terminal** — it is never retried and counts as a definitive failure.
 
 ---
 
 ## Project structure
 
 ```
-assetValidator/
+SUFI-url-validator/
 ├── src/
-│   ├── globalSetup.ts          # Playwright global setup — validates env config
-│   ├── validator.ts            # CLI entry point
+│   ├── globalSetup.ts          # Validates env config + clears results buffer
+│   ├── globalTeardown.ts       # Sends the Slack summary (if enabled)
+│   ├── validator.ts            # Standalone CLI entry point
+│   ├── types/
+│   │   └── index.ts            # Shared types
 │   └── utils/
-│       ├── assetValidator.ts   # Core validation logic + retry + p-limit concurrency
-│       ├── config.ts           # Environment variable loading + validation
-│       ├── contentfulClient.ts # Thin CDA HTTP client (native fetch, no SDK)
-│       ├── csvReader.ts        # CSV streaming reader + release batch slicer
-│       ├── localAssetChecker.ts# Local JPEG file existence + header validation
-│       └── reporter.ts         # Console output + JSON/CSV report writers
+│       ├── assetValidator.ts   # Core validation + retry + p-limit + Vercel auth
+│       ├── config.ts           # Environment loading + validation
+│       ├── csvReader.ts        # CSV streaming reader + release-batch slicer
+│       ├── reporter.ts         # Console output + JSON/CSV report writers
+│       └── slackReporter.ts    # Slack Block Kit summary sender
 ├── tests/
-│   ├── assets.spec.ts          # Playwright test — CDA + CDN HTTP validation
-│   └── localAssets.spec.ts     # Playwright test — local file validation
+│   ├── assets.spec.ts          # CSV URL batch — HTTP 200 validation
+│   ├── header-nav.spec.ts      # Preview header link health check
+│   └── seed.spec.ts            # Playwright codegen seed
 ├── Resources/
-│   └── images.csv              # Asset ID list (Release 1, 999 rows)
-├── reports/                    # Generated reports (gitignored)
+│   └── urls.csv                # URL list (gitignored)
+├── reports/                    # Generated reports + QA run logs
 ├── .env.example                # Configuration template
-├── .gitignore
 ├── package.json
 ├── playwright.config.ts
 └── tsconfig.json
 ```
 
----
-
-## Rate limiting
-
-Contentful CDA limits:
-
-| Tier | Requests/second |
-|---|---|
-| Free | ~7 req/s |
-| Team | ~55 req/s |
-| Enterprise | ~78 req/s |
-
-The validator uses `p-limit` to cap concurrent in-flight requests. Set `CONCURRENCY=5`
-for free tier (conservative), `CONCURRENCY=15` for Team tier.
-
-For 999 assets at `CONCURRENCY=5`: expect ~5–8 minutes (each request takes ~300ms avg).
-For 999 assets at `CONCURRENCY=15`: expect ~2–3 minutes.
-
----
-
-## CI/CD (GitHub Actions)
-
-The workflow at `.github/workflows/validate-assets.yml` supports:
-
-- Manual trigger via `workflow_dispatch` with `release_number` input
-- Automatic trigger on pushes to `validate/**` branches
-
-Add these secrets to your GitHub repository:
-- `CONTENTFUL_SPACE_ID`
-- `CONTENTFUL_ACCESS_TOKEN`
-- `CONTENTFUL_ENVIRONMENT` (optional, defaults to `master`)
+> **Note:** This repo serves a dual purpose — the validator tooling above, and storage of
+> manual QA run logs under `reports/QA/`. Manual test cases are authored and tracked in Testmo.

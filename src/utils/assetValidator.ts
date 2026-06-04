@@ -58,6 +58,33 @@ function sleep(ms: number): Promise<void> {
 }
 
 // ============================================================
+// Vercel password-protection auth
+// ============================================================
+
+let cachedVercelJwt: string | null = null;
+
+async function getVercelJwt(targetUrl: string, password: string): Promise<string> {
+  if (cachedVercelJwt) return cachedVercelJwt;
+
+  const origin = new URL(targetUrl).origin;
+  const response = await fetch(`${origin}/_vercel/password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `_vercel_password=${encodeURIComponent(password)}`,
+    redirect: 'manual',
+  });
+
+  const setCookie = response.headers.get('set-cookie') ?? '';
+  const match = setCookie.match(/_vercel_jwt=([^;]+)/);
+  if (!match) {
+    throw new Error(`Vercel auth failed for ${origin} — no _vercel_jwt cookie in response`);
+  }
+
+  cachedVercelJwt = match[1];
+  return cachedVercelJwt;
+}
+
+// ============================================================
 // Core validation logic
 // ============================================================
 
@@ -84,11 +111,18 @@ async function validateUrl(
   };
 
   try {
+    const headers: Record<string, string> = {};
+    if (config.vercelBypassToken) {
+      const jwt = await getVercelJwt(url, config.vercelBypassToken);
+      headers['Cookie'] = `_vercel_jwt=${jwt}`;
+    }
+
     const { result: response, retryCount } = await withRetry(
       () =>
         fetch(url, {
           method: 'GET',
           redirect: 'follow',
+          headers,
         }),
       config.maxRetries,
       config.retryDelayMs,

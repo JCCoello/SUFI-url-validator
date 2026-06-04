@@ -19,8 +19,6 @@ async function globalSetup(): Promise<void> {
 
   try {
     const config = loadConfig();
-    console.log(`[GlobalSetup] Space ID:     ${config.spaceId}`);
-    console.log(`[GlobalSetup] Environment:  ${config.environment}`);
     console.log(`[GlobalSetup] CSV Path:     ${config.csvPath}`);
     console.log(`[GlobalSetup] Concurrency:  ${config.concurrency}`);
     console.log(`[GlobalSetup] Release:      ${config.releaseNumber ?? 'ALL'} of ${config.totalReleases}`);

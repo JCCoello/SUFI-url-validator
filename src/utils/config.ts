@@ -51,5 +51,6 @@ export function loadConfig(): ValidatorConfig {
     totalReleases,
     reportDir: path.resolve(__dirname, '../../', process.env.REPORT_DIR ?? './reports'),
     reportFormat,
+    vercelBypassToken: process.env.VERCEL_BYPASS_TOKEN ?? null,
   };
 }
