@@ -7,6 +7,8 @@ dist/
 
 # Environment — NEVER commit real credentials
 .env
+.env.local
+contentful.creds.json
 
 # Reports (large, generated)
 reports/*.json
