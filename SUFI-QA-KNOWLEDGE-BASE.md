@@ -21,8 +21,10 @@ Este repositorio (`SUFI-url-validator`) cumple **dos funciones simultáneas**:
 
 ### 2.1 Herramienta de Validación Automatizada
 - Validador de URLs migradas: verifica que cada URL del CSV retorne HTTP 200 (siguiendo redirects; 404 se trata como falla terminal).
-- Suite de Playwright con specs para: validación de assets (`tests/assets.spec.ts`), navegación del header (`tests/header-nav.spec.ts`), y seed de datos (`tests/seed.spec.ts`).
+- Suite de Playwright con specs para: validación de assets (`tests/assets.spec.ts`), navegación del header (`tests/header-nav.spec.ts`), seed de datos (`tests/seed.spec.ts`), y specs de smoke por ticket (`tests/sufi-102.spec.ts`, `tests/sufi-110.spec.ts`, etc.).
 - CLI standalone: `src/validator.ts` consume un CSV en `./Resources/urls.csv`.
+- Config separada `playwright.smoke.config.ts` para los specs de smoke (no dispara el `globalSetup` del validador de URLs).
+- Scripts npm: `test:smoke` (todos los smokes), `test:smoke:sufi102`.
 
 ### 2.2 Hub de QA del Equipo
 - `reports/QA/manual-runs/` — logs de ejecución de smoke tests manuales, organizados por ticket (`SUFI-<id>/`).
@@ -99,6 +101,26 @@ reports/QA/manual-runs/SUFI-<id>/SUFI-<id>-YYYY-MM-DD-<slug>.md
 
 Formato del archivo: un caso por sección, separados por `---`. Cada caso incluye: ID Testmo, descripción, resultado (PASS/FAIL), notas de evidencia.
 
+**Tickets completados (con run log en el repo):**
+
+| Ticket | Fecha | Tipo | Resultado |
+|--------|-------|------|-----------|
+| SUFI-35, 40, 41, 68, 69 | 2026-06-09/10 | Manual | ✅ Pass |
+| SUFI-70, 71, 73, 78, 79, 84, 85 | 2026-06-11 | Manual | ✅ Pass |
+| SUFI-67 | 2026-06-12 | Manual + Playwright | ✅ Pass |
+| SUFI-72 | 2026-06-12 | Manual | ✅ Pass |
+| SUFI-74 | 2026-06-10 | Manual | ✅ Pass |
+| SUFI-75 | 2026-06-12 | Manual | ⚠️ Defectos encontrados |
+| SUFI-98 | 2026-06-12 | Manual | ✅ Pass |
+| SUFI-96 | 2026-06-15 | Manual + Playwright | ✅ Pass |
+| SUFI-97 | 2026-06-15 | Manual + Playwright | ✅ Pass |
+| SUFI-99 | 2026-06-15 | Manual + Playwright | ✅ Pass |
+| SUFI-77 | 2026-06-16 | Manual | ✅ Pass |
+| SUFI-101 | 2026-06-16 | Manual | ✅ Pass |
+| SUFI-102 | 2026-06-16/17 | Playwright automatizado | ✅ Pass |
+| SUFI-103 | 2026-06-17 | Manual + Playwright | ✅ Pass |
+| SUFI-110 | 2026-06-18 | Manual + Playwright | ✅ Pass |
+
 ### 5.3 Defectos
 Los bugs encontrados durante las ejecuciones se documentan en:
 
@@ -119,12 +141,21 @@ Actualmente centrado en la integración Storybook ↔ preview web: verificar que
 - `tests/header-nav.spec.ts` — verifica que todos los links del header retornen HTTP 200. Se conecta al PROD preview (`sufi-app.vercel.app`) con manejo del password screen de Vercel.
 - `tests/assets.spec.ts` — valida URLs/assets contra un CSV.
 - `tests/seed.spec.ts` — spec de seed de datos.
+- `tests/sufi-102.spec.ts` — smoke completamente automatizado para SUFI-102 (8 ACs: color sub-tones medium/light). Cubre Storybook Foundation Colors, controls panel de Card y Promotional Card, campos de Contentful vía iframe cross-origin, y renderizado en DEV (desktop, tablet, mobile). Screenshots anotados con borde rojo + etiqueta overlay.
+- `tests/sufi-110.spec.ts` + `tests/sufi-110-news-card-smoke.spec.ts` + `tests/sufi-110-seed.spec.ts` — suite de smoke para SUFI-110 (componente News Card).
+- `playwright.smoke.config.ts` — config separada para specs de smoke (no dispara `globalSetup` del validador).
 - `src/validator.ts` — CLI de validación de URLs desde CSV.
 - GitHub Actions workflow (`validate-assets.yml`) — disparo manual (`workflow_dispatch`) o por push a branches `validate/**`. Solo corre el validador de assets, no los specs de Playwright.
 
+### Patrones de automatización establecidos:
+- **Contentful login:** form single-step, `waitForLoadState('networkidle')` post-click, credenciales en `.env.local` (gitignored).
+- **Campo iframe de Contentful:** acceso vía `frameLocator('[data-test-id="cf-widget-renderer"]')`, `waitFor({ timeout: 15000 })` antes de leer opciones (no usar `networkidle` en navegación a entries).
+- **Storybook controls panel:** `<select>` nativo en `<table>`, filtrar por celda exacta para evitar matches múltiples.
+- **Storybook iframe directo:** `/iframe.html?id=...&viewMode=story` para viewport full-width sin shell panel.
+- **Screenshots anotados:** helper `annotateAndScreenshot()` — inyecta borde + overlay `<div id="__qa-label">` antes de capturar, lo remueve entre capturas.
+
 ### Lo que NO existe aún:
 - Tests de accesibilidad (WCAG/axe).
-- Cobertura automatizada de los flujos manuales de smoke testing.
 - Ejecución automática en schedule.
 - Publicación de reportes Allure para visibilidad de stakeholders.
 - Trazabilidad entre specs y casos Testmo (anotaciones `allure.tms()`).
@@ -189,11 +220,11 @@ Los nuevos Ways of Working de Apply QE establecen las siguientes expectativas cl
 - [ ] Esperar respuesta de Marcelo/Hernán sobre acceso al repositorio en Azure.
 - [ ] Confirmar si el repo nuevo será Azure DevOps o GitHub.
 - [ ] Definir qué specs se migran primero al repo del proyecto.
-- [ ] Evaluar casos manuales de smoke para candidatos a automatización.
 - [ ] Agregar axe-playwright para checks de accesibilidad.
 - [ ] Agregar anotaciones `allure.tms()` para trazabilidad con Testmo.
 - [ ] Publicar reportes Allure en alguna superficie accesible para el equipo.
+- [ ] Continuar smoke runs para tickets pendientes en el backlog.
 
 ---
 
-*Última actualización: 2026-06-11*
+*Última actualización: 2026-06-18*
